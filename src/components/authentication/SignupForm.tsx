@@ -6,23 +6,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogIn } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
-export function LoginForm() {
-  const { login } = useAuth();
+export function SignupForm() {
+  const { signup } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      alert("Passwords don't match");
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      const success = await login(username, password);
+      const success = await signup(username, password, name);
       if (success) {
-        navigate("/verification");
+        navigate("/login");
       }
     } finally {
       setIsLoading(false);
@@ -32,33 +40,60 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="text-2xl text-center">Voter Login</CardTitle>
+        <CardTitle className="text-2xl text-center">Voter Registration</CardTitle>
         <CardDescription className="text-center">
-          Enter your credentials to access your voting account
+          Create an account to participate in elections
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="Enter your full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"
               type="text"
-              placeholder="Enter your username"
+              placeholder="Choose a username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
             />
           </div>
+          
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={6}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
             />
           </div>
         </CardContent>
@@ -69,23 +104,23 @@ export function LoginForm() {
             disabled={isLoading}
           >
             {isLoading ? (
-              <span className="animate-pulse-light">Logging in...</span>
+              <span className="animate-pulse-light">Creating Account...</span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <LogIn size={16} />
-                Login as Voter
+                <UserPlus size={16} />
+                Register
               </span>
             )}
           </Button>
           
           <p className="text-sm text-center mt-2">
-            Don't have an account?{" "}
+            Already have an account?{" "}
             <button
               type="button"
               className="text-primary hover:underline"
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate("/login")}
             >
-              Sign up
+              Log in
             </button>
           </p>
         </CardFooter>

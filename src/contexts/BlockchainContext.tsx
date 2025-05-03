@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
 import { toast } from "sonner";
@@ -44,6 +43,7 @@ interface BlockchainContextType {
   hasUserVoted: boolean;
   totalVotes: number;
   electionState: ElectionState;
+  winner: Candidate | null;
   initialize: () => Promise<boolean>;
   refreshCandidates: () => Promise<Candidate[]>;
   addCandidate: (name: string, party: string, imageUrl: string) => Promise<boolean>;
@@ -86,12 +86,13 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
   const [hasUserVoted, setHasUserVoted] = useState(false);
   const [totalVotes, setTotalVotes] = useState(0);
   const [electionState, setElectionState] = useState<ElectionState>(ElectionState.NotStarted);
+  const [winner, setWinner] = useState<Candidate | null>(null);
 
   // Mock candidates for development
   const mockCandidates: Candidate[] = [
-    { id: 1, name: "Alice Johnson", party: "Progressive Party", imageUrl: "/placeholder.svg", voteCount: 42 },
-    { id: 2, name: "Bob Smith", party: "Conservative Party", imageUrl: "/placeholder.svg", voteCount: 38 },
-    { id: 3, name: "Carol Williams", party: "Centrist Alliance", imageUrl: "/placeholder.svg", voteCount: 27 },
+    { id: 1, name: "Alice Johnson", party: "Progressive Party", imageUrl: "/placeholder.svg", voteCount: 0 },
+    { id: 2, name: "Bob Smith", party: "Conservative Party", imageUrl: "/placeholder.svg", voteCount: 0 },
+    { id: 3, name: "Carol Williams", party: "Centrist Alliance", imageUrl: "/placeholder.svg", voteCount: 0 },
   ];
 
   // Initialize blockchain connection
@@ -115,14 +116,14 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
       setIsInitialized(true);
       setIsConnected(true);
       
-      // Set mock candidates
+      // Set mock candidates with zero votes
       setCandidates(mockCandidates);
       
-      // Mock election state
-      setElectionState(ElectionState.InProgress);
+      // Start with election not started
+      setElectionState(ElectionState.NotStarted);
       
-      // Mock total votes
-      setTotalVotes(mockCandidates.reduce((sum, candidate) => sum + candidate.voteCount, 0));
+      // Set total votes to 0
+      setTotalVotes(0);
       
       toast.success("Blockchain connection initialized");
       return true;
@@ -296,7 +297,7 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
     }
   };
 
-  // End the election (admin only)
+  // End the election and determine winner (admin only)
   const endElection = async (): Promise<boolean> => {
     try {
       if (!isConnected) {
@@ -317,7 +318,14 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
       // In production, this would call the contract method
       // await contract.endElection();
       
-      // For now, just update our state
+      // Determine the winner
+      if (candidates.length > 0) {
+        const sortedCandidates = [...candidates].sort((a, b) => b.voteCount - a.voteCount);
+        const winningCandidate = sortedCandidates[0];
+        setWinner(winningCandidate);
+      }
+      
+      // Update election state
       setElectionState(ElectionState.Ended);
       toast.success("Election ended successfully");
       return true;
@@ -344,6 +352,7 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
     hasUserVoted,
     totalVotes,
     electionState,
+    winner,
     initialize,
     refreshCandidates,
     addCandidate,

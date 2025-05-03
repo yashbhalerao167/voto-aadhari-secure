@@ -3,17 +3,18 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AdminStats } from "./AdminStats";
 import { CandidateManagement } from "./CandidateManagement";
 import { ResultsChart } from "./ResultsChart";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBlockchain } from "@/contexts/BlockchainContext";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { BarChart, PieChart, Users } from "lucide-react";
+import { BarChart, PieChart, Trophy, Users } from "lucide-react";
 
 export function AdminDashboard() {
   const { user } = useAuth();
-  const { electionState, startElection, endElection } = useBlockchain();
+  const { electionState, startElection, endElection, winner, totalVotes } = useBlockchain();
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!user || user.role !== "admin") {
@@ -123,6 +124,16 @@ export function AdminDashboard() {
           )}
         </div>
       </div>
+      
+      {electionState === 2 && winner && (
+        <Alert className="bg-green-50 border-green-200">
+          <Trophy className="h-5 w-5 text-green-600" />
+          <AlertTitle className="text-green-800">Election Winner: {winner.name}</AlertTitle>
+          <AlertDescription className="text-green-700">
+            From {winner.party} with {winner.voteCount} votes ({totalVotes > 0 ? ((winner.voteCount / totalVotes) * 100).toFixed(2) : 0}% of total votes)
+          </AlertDescription>
+        </Alert>
+      )}
       
       <AdminStats />
       

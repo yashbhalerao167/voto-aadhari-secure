@@ -10,6 +10,7 @@ import { BlockchainProvider } from "@/contexts/BlockchainContext";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import AdminLogin from "./pages/AdminLogin";
 import Verification from "./pages/Verification";
 import WalletConnect from "./pages/WalletConnect";
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/about" element={<About />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/verification" element={<Verification />} />
               <Route path="/wallet-connect" element={<WalletConnect />} />
