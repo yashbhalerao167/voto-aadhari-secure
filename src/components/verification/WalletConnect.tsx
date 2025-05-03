@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuth } from "@/contexts/AuthContext";
 import { useBlockchain } from "@/contexts/BlockchainContext";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 export function WalletConnect() {
   const { user, connectWallet } = useAuth();
@@ -13,11 +15,15 @@ export function WalletConnect() {
   const navigate = useNavigate();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [hasMetaMask, setHasMetaMask] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Check if metamask is installed
     const checkMetaMask = async () => {
-      if (!window.ethereum) {
+      const isMetaMaskInstalled = typeof window !== "undefined" && window.ethereum !== undefined;
+      setHasMetaMask(isMetaMaskInstalled);
+      
+      if (!isMetaMaskInstalled) {
         toast.error("MetaMask is not installed. Please install MetaMask to continue.");
       }
     };
@@ -74,9 +80,31 @@ export function WalletConnect() {
           />
         </div>
         
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-          <p className="text-sm text-amber-700">
-            <strong>Important:</strong> You need to have MetaMask installed to connect your wallet. If you don't have it yet, please install the MetaMask extension first from <a href="https://metamask.io/download/" target="_blank" rel="noreferrer" className="underline">metamask.io</a>.
+        {hasMetaMask === false ? (
+          <Alert variant="destructive" className="bg-red-50 border border-red-200 text-red-800">
+            <Info className="h-5 w-5" />
+            <AlertDescription>
+              MetaMask is not installed. Please install the <a 
+                href="https://metamask.io/download/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="underline font-medium"
+              >
+                MetaMask extension
+              </a> first to continue.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+            <p className="text-sm text-amber-700">
+              <strong>Important:</strong> Your Aadhaar will be linked to this MetaMask wallet address for secure voting. Make sure you're connecting the correct account.
+            </p>
+          </div>
+        )}
+
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+          <p className="text-sm text-blue-700">
+            <strong>Test Network:</strong> This application uses a test blockchain network for voting. If prompted by MetaMask, please switch to the test network.
           </p>
         </div>
       </CardContent>
@@ -84,7 +112,7 @@ export function WalletConnect() {
         <Button 
           onClick={handleConnectWallet} 
           className="w-full bg-[#E2761B] hover:bg-[#C66410] text-white"
-          disabled={isConnecting || isInitializing}
+          disabled={isConnecting || isInitializing || hasMetaMask === false}
         >
           {isConnecting ? (
             <span className="animate-pulse-light">Connecting Wallet...</span>

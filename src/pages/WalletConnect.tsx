@@ -28,6 +28,11 @@ const WalletConnect = () => {
     }
   }, [user, navigate]);
 
+  // If user is not available yet (still loading), return empty
+  if (!user) {
+    return null;
+  }
+
   return (
     <MainLayout>
       <div className="max-w-md mx-auto py-10">

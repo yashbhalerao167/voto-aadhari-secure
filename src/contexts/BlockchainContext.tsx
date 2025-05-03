@@ -29,6 +29,7 @@ interface BlockchainContextType {
   totalVotes: number;
   electionState: ElectionState;
   winner: Candidate | null;
+  networkName: string;
   initialize: () => Promise<boolean>;
   refreshCandidates: () => Promise<Candidate[]>;
   addCandidate: (name: string, party: string, imageUrl: string) => Promise<boolean>;
@@ -47,8 +48,21 @@ export const useBlockchain = () => {
   return context;
 };
 
-// Mock contract address
+// Mock contract address - this would be your deployed contract address
 const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
+// Simple ABI for demonstration - you would use your actual contract ABI
+const CONTRACT_ABI = [
+  "function vote(uint256 candidateId) public",
+  "function hasVoted(address voter) public view returns (bool)",
+  "function getCandidates() public view returns (tuple(uint256 id, string name, string party, string imageUrl, uint256 voteCount)[])",
+  "function startElection() public",
+  "function endElection() public",
+  "function addCandidate(string name, string party, string imageUrl) public",
+  "function getElectionState() public view returns (uint8)",
+  "function getWinner() public view returns (tuple(uint256 id, string name, string party, string imageUrl, uint256 voteCount))",
+  "event VoteCast(address indexed voter, uint256 indexed candidateId)"
+];
 
 interface BlockchainProviderProps {
   children: ReactNode;
@@ -72,6 +86,7 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
   const [totalVotes, setTotalVotes] = useState(0);
   const [electionState, setElectionState] = useState<ElectionState>(ElectionState.NotStarted);
   const [winner, setWinner] = useState<Candidate | null>(null);
+  const [networkName, setNetworkName] = useState<string>("Unknown Network");
 
   // Initialize local storage
   useEffect(() => {
@@ -120,12 +135,92 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
+      // Request account access
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
       // Connect to Ethereum network via MetaMask
       const ethersProvider = new ethers.BrowserProvider(window.ethereum);
       setProvider(ethersProvider);
       
+      // Get network information
+      const network = await ethersProvider.getNetwork();
+      const networkNameValue = getNetworkName(network.chainId);
+      setNetworkName(networkNameValue);
+      
+      // Check if we're on a supported network
+      if (!isSupportedNetwork(network.chainId)) {
+        try {
+          // Try to switch to a supported network (Sepolia testnet)
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xaa36a7' }], // Sepolia chainId
+          });
+          toast.success("Switched to Sepolia test network");
+        } catch (switchError: any) {
+          // If network doesn't exist, try to add it
+          if (switchError.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [
+                  {
+                    chainId: '0xaa36a7',
+                    chainName: 'Sepolia Test Network',
+                    nativeCurrency: {
+                      name: 'Sepolia ETH',
+                      symbol: 'ETH',
+                      decimals: 18,
+                    },
+                    rpcUrls: ['https://sepolia.infura.io/v3/'],
+                    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                  },
+                ],
+              });
+            } catch (addError) {
+              toast.error("Failed to add Sepolia network");
+              return false;
+            }
+          } else {
+            toast.error("Please switch to a supported test network");
+            return false;
+          }
+        }
+        
+        // Reconnect after switching networks
+        const updatedProvider = new ethers.BrowserProvider(window.ethereum);
+        setProvider(updatedProvider);
+        
+        // Update network name
+        const updatedNetwork = await updatedProvider.getNetwork();
+        setNetworkName(getNetworkName(updatedNetwork.chainId));
+      }
+      
+      // For demo purposes, we're using local storage, but in a real application,
+      // you would create a contract instance here
+      // const electionContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, ethersProvider.getSigner());
+      // setContract(electionContract);
+      
       // Load local data
       loadLocalData();
+      
+      // Set up event listener for account changes
+      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+        if (accounts.length === 0) {
+          // User disconnected account
+          toast.info("MetaMask account disconnected");
+          setIsConnected(false);
+        } else {
+          // User switched account
+          toast.info("MetaMask account changed");
+          window.location.reload(); // Refresh to update state with new account
+        }
+      });
+      
+      // Set up event listener for chain changes
+      window.ethereum.on('chainChanged', () => {
+        toast.info("Network changed, refreshing...");
+        window.location.reload(); // Refresh on network change
+      });
 
       setIsInitialized(true);
       setIsConnected(true);
@@ -137,6 +232,26 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
       toast.error(error.message || "Failed to initialize blockchain connection");
       return false;
     }
+  };
+
+  // Get network name from chainId
+  const getNetworkName = (chainId: bigint): string => {
+    const networks: Record<string, string> = {
+      "1": "Ethereum Mainnet",
+      "5": "Goerli Testnet",
+      "11155111": "Sepolia Testnet",
+      "1337": "Ganache Local",
+      "31337": "Hardhat Local"
+    };
+    
+    return networks[chainId.toString()] || `Unknown Network (${chainId.toString()})`;
+  };
+  
+  // Check if network is supported
+  const isSupportedNetwork = (chainId: bigint): boolean => {
+    // For this demo, we support test networks and local networks
+    const supportedNetworks = ["5", "11155111", "1337", "31337"];
+    return supportedNetworks.includes(chainId.toString());
   };
 
   // Load data from local storage
@@ -174,6 +289,14 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
   // Refresh candidates list
   const refreshCandidates = async (): Promise<Candidate[]> => {
     try {
+      // In a real app, this would call the contract method
+      // if (contract) {
+      //   const candidatesFromContract = await contract.getCandidates();
+      //   setCandidates(candidatesFromContract);
+      //   return candidatesFromContract;
+      // }
+      
+      // For demo purposes, we're using local storage
       const storedCandidates = localStorage.getItem("candidates");
       if (storedCandidates) {
         const candidateList = JSON.parse(storedCandidates);
@@ -200,7 +323,15 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // Get existing candidates
+      // In a real app, this would call the contract method
+      // if (contract) {
+      //   const tx = await contract.addCandidate(name, party, imageUrl);
+      //   await tx.wait();
+      //   await refreshCandidates();
+      //   return true;
+      // }
+      
+      // For demo purposes, we're using local storage
       const storedCandidates = localStorage.getItem("candidates");
       const existingCandidates = storedCandidates ? JSON.parse(storedCandidates) : [];
       
@@ -259,7 +390,17 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // Get existing candidates
+      // In a real app, this would call the contract method
+      // if (contract) {
+      //   const tx = await contract.vote(candidateId);
+      //   await tx.wait();
+      //   await refreshCandidates();
+      //   setHasUserVoted(true);
+      //   updateUserVoteStatus(true);
+      //   return true;
+      // }
+      
+      // For demo purposes, we're using local storage
       const storedCandidates = localStorage.getItem("candidates");
       const existingCandidates: Candidate[] = storedCandidates ? JSON.parse(storedCandidates) : [];
       
@@ -320,6 +461,14 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
+      // In a real app, this would call the contract method
+      // if (contract) {
+      //   const tx = await contract.startElection();
+      //   await tx.wait();
+      //   setElectionState(ElectionState.InProgress);
+      //   return true;
+      // }
+      
       // Check if there are candidates
       const storedCandidates = localStorage.getItem("candidates");
       const existingCandidates = storedCandidates ? JSON.parse(storedCandidates) : [];
@@ -359,6 +508,16 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
+      // In a real app, this would call the contract method
+      // if (contract) {
+      //   const tx = await contract.endElection();
+      //   await tx.wait();
+      //   setElectionState(ElectionState.Ended);
+      //   const winnerFromContract = await contract.getWinner();
+      //   setWinner(winnerFromContract);
+      //   return true;
+      // }
+      
       // Update election state
       localStorage.setItem("electionState", ElectionState.Ended.toString());
       setElectionState(ElectionState.Ended);
@@ -395,6 +554,7 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
     totalVotes,
     electionState,
     winner,
+    networkName,
     initialize,
     refreshCandidates,
     addCandidate,

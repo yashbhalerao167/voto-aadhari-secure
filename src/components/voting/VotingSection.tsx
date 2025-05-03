@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Info, AlertTriangle, CheckCircle, Trophy } from "lucide-react";
 
 export function VotingSection() {
-  const { candidates, hasUserVoted, refreshCandidates, totalVotes, electionState, winner } = useBlockchain();
+  const { candidates, hasUserVoted, refreshCandidates, totalVotes, electionState, winner, networkName } = useBlockchain();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("vote");
   const isAdmin = user?.role === "admin";
@@ -32,6 +32,16 @@ export function VotingSection() {
 
   return (
     <div className="space-y-6">
+      {networkName && (
+        <Alert variant="default" className="bg-blue-50 text-blue-800 border-blue-200">
+          <Info className="h-5 w-5" />
+          <AlertTitle>Connected to {networkName}</AlertTitle>
+          <AlertDescription>
+            Your wallet is connected to {networkName}. All voting transactions will be recorded on this network.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {electionState === 0 && (
         <Alert variant="default" className="bg-blue-50 text-blue-800 border-blue-200">
           <Info className="h-5 w-5" />

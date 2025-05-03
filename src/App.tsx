@@ -36,12 +36,19 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <BlockchainProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner position="top-right" />
-          <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <BlockchainProvider>
+          <TooltipProvider>
+            {/* Toast notifications with auto-dismiss */}
+            <Toaster />
+            <Sonner 
+              position="top-right" 
+              closeButton
+              duration={5000} 
+              theme="light"
+              richColors
+            />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/about" element={<About />} />
@@ -54,10 +61,10 @@ const App = () => (
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </BlockchainProvider>
-    </AuthProvider>
+          </TooltipProvider>
+        </BlockchainProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

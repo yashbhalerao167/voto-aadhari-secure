@@ -257,6 +257,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       const aadhaarNumber = aadhaarData.get("aadhaarNumber") as string;
       
+      // Check if this Aadhaar is already linked to another account
+      const storedUsers = localStorage.getItem("users");
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        const aadhaarExists = users.some((u: StoredUser) => 
+          u.aadhaarNumber === aadhaarNumber && 
+          u.username !== user?.username
+        );
+        
+        if (aadhaarExists) {
+          toast.error("This Aadhaar number is already registered with another account.");
+          return false;
+        }
+      }
+      
       if (user && user.username) {
         // Update the user in the current session
         const updatedUser = { 
@@ -268,7 +283,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem("user", JSON.stringify(updatedUser));
         
         // Update in the stored users
-        const storedUsers = localStorage.getItem("users");
         if (storedUsers) {
           const users = JSON.parse(storedUsers);
           const updatedUsers = users.map((u: StoredUser) => {
@@ -317,6 +331,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       const walletAddress = accounts[0];
       
+      // Check if this wallet is already linked to another account
+      const storedUsers = localStorage.getItem("users");
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        const walletExists = users.some((u: StoredUser) => 
+          u.walletAddress === walletAddress && 
+          u.username !== user?.username
+        );
+        
+        if (walletExists) {
+          toast.error("This wallet address is already linked to another account.");
+          return false;
+        }
+      }
+      
       if (user && user.username) {
         const updatedUser = { 
           ...user, 
@@ -326,7 +355,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem("user", JSON.stringify(updatedUser));
         
         // Update in the stored users
-        const storedUsers = localStorage.getItem("users");
         if (storedUsers) {
           const users = JSON.parse(storedUsers);
           const updatedUsers = users.map((u: StoredUser) => {
