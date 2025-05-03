@@ -1,25 +1,10 @@
+
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
 
-// Mock Election contract ABI - this would be generated from the actual Solidity contract
-const ElectionABI = [
-  "function getCandidateCount() view returns (uint256)",
-  "function getCandidate(uint256 candidateId) view returns (uint256 id, string name, string party, string imageUrl, uint256 voteCount)",
-  "function addCandidate(string name, string party, string imageUrl)",
-  "function vote(uint256 candidateId)",
-  "function hasVoted(address voter) view returns (bool)",
-  "function getTotalVotes() view returns (uint256)",
-  "function getElectionState() view returns (uint8)", // 0: Not Started, 1: In Progress, 2: Ended
-  "function startElection()",
-  "function endElection()",
-  "event CandidateAdded(uint256 indexed candidateId, string name)",
-  "event Voted(address indexed voter, uint256 indexed candidateId)",
-  "event ElectionStateChanged(uint8 state)"
-];
-
-// Mock candidate type
+// Candidate interface
 interface Candidate {
   id: number;
   name: string;
@@ -62,14 +47,14 @@ export const useBlockchain = () => {
   return context;
 };
 
-// Mock contract address - in production this would be the deployed contract address
+// Mock contract address
 const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 interface BlockchainProviderProps {
   children: ReactNode;
 }
 
-// Define the additional properties on the window object
+// Define window.ethereum
 declare global {
   interface Window {
     ethereum?: any;
@@ -77,7 +62,7 @@ declare global {
 }
 
 export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
-  const { user } = useAuth();
+  const { user, updateUserVoteStatus } = useAuth();
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [provider, setProvider] = useState<ethers.Provider | null>(null);
@@ -88,12 +73,44 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
   const [electionState, setElectionState] = useState<ElectionState>(ElectionState.NotStarted);
   const [winner, setWinner] = useState<Candidate | null>(null);
 
-  // Mock candidates for development
-  const mockCandidates: Candidate[] = [
-    { id: 1, name: "Alice Johnson", party: "Progressive Party", imageUrl: "/placeholder.svg", voteCount: 0 },
-    { id: 2, name: "Bob Smith", party: "Conservative Party", imageUrl: "/placeholder.svg", voteCount: 0 },
-    { id: 3, name: "Carol Williams", party: "Centrist Alliance", imageUrl: "/placeholder.svg", voteCount: 0 },
-  ];
+  // Initialize local storage
+  useEffect(() => {
+    // Initialize candidates from local storage or with defaults
+    const storedCandidates = localStorage.getItem("candidates");
+    if (storedCandidates) {
+      setCandidates(JSON.parse(storedCandidates));
+    }
+
+    // Initialize election state from local storage or with defaults
+    const storedElectionState = localStorage.getItem("electionState");
+    if (storedElectionState) {
+      setElectionState(parseInt(storedElectionState));
+    } else {
+      // Default to "Not Started"
+      localStorage.setItem("electionState", ElectionState.NotStarted.toString());
+    }
+
+    // Initialize total votes from local storage or with defaults
+    const storedTotalVotes = localStorage.getItem("totalVotes");
+    if (storedTotalVotes) {
+      setTotalVotes(parseInt(storedTotalVotes));
+    } else {
+      localStorage.setItem("totalVotes", "0");
+    }
+
+    // Initialize winner from local storage
+    const storedWinner = localStorage.getItem("winner");
+    if (storedWinner) {
+      setWinner(JSON.parse(storedWinner));
+    }
+  }, []);
+
+  // Check if user has voted when user changes
+  useEffect(() => {
+    if (user) {
+      setHasUserVoted(!!user.hasVoted);
+    }
+  }, [user]);
 
   // Initialize blockchain connection
   const initialize = async (): Promise<boolean> => {
@@ -106,24 +123,12 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
       // Connect to Ethereum network via MetaMask
       const ethersProvider = new ethers.BrowserProvider(window.ethereum);
       setProvider(ethersProvider);
-
-      // In production, we would connect to the actual contract
-      // For now, we'll just simulate it with our mock data
-      // const signer = await ethersProvider.getSigner();
-      // const electionContract = new ethers.Contract(CONTRACT_ADDRESS, ElectionABI, signer);
-      // setContract(electionContract);
+      
+      // Load local data
+      loadLocalData();
 
       setIsInitialized(true);
       setIsConnected(true);
-      
-      // Set mock candidates with zero votes
-      setCandidates(mockCandidates);
-      
-      // Start with election not started
-      setElectionState(ElectionState.NotStarted);
-      
-      // Set total votes to 0
-      setTotalVotes(0);
       
       toast.success("Blockchain connection initialized");
       return true;
@@ -134,43 +139,48 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
     }
   };
 
-  // Check if user has voted
-  const checkIfUserVoted = useCallback(async () => {
-    if (isConnected && user?.walletAddress) {
-      try {
-        // In production, this would call the contract method
-        // const voted = await contract.hasVoted(user.walletAddress);
-        // setHasUserVoted(voted);
-        
-        // For now, just set a mock value
-        setHasUserVoted(false);
-      } catch (error) {
-        console.error("Error checking if user voted:", error);
+  // Load data from local storage
+  const loadLocalData = () => {
+    // Load candidates
+    const storedCandidates = localStorage.getItem("candidates");
+    if (storedCandidates) {
+      setCandidates(JSON.parse(storedCandidates));
+    } else {
+      // Set default empty candidates array
+      localStorage.setItem("candidates", JSON.stringify([]));
+    }
+
+    // Load election state
+    const storedElectionState = localStorage.getItem("electionState");
+    if (storedElectionState) {
+      setElectionState(parseInt(storedElectionState));
+    }
+
+    // Load total votes
+    const storedTotalVotes = localStorage.getItem("totalVotes");
+    if (storedTotalVotes) {
+      setTotalVotes(parseInt(storedTotalVotes));
+    }
+
+    // Load winner if election has ended
+    if (parseInt(storedElectionState || "0") === ElectionState.Ended) {
+      const storedWinner = localStorage.getItem("winner");
+      if (storedWinner) {
+        setWinner(JSON.parse(storedWinner));
       }
     }
-  }, [isConnected, user]);
+  };
 
   // Refresh candidates list
   const refreshCandidates = async (): Promise<Candidate[]> => {
     try {
-      // In production, this would fetch from the blockchain
-      // const count = await contract.getCandidateCount();
-      // const fetchedCandidates = [];
-      // for (let i = 1; i <= count; i++) {
-      //   const candidate = await contract.getCandidate(i);
-      //   fetchedCandidates.push({
-      //     id: candidate.id.toNumber(),
-      //     name: candidate.name,
-      //     party: candidate.party,
-      //     imageUrl: candidate.imageUrl,
-      //     voteCount: candidate.voteCount.toNumber()
-      //   });
-      // }
-      // setCandidates(fetchedCandidates);
-      // return fetchedCandidates;
-      
-      // For mock data, just return the existing mock candidates
-      return mockCandidates;
+      const storedCandidates = localStorage.getItem("candidates");
+      if (storedCandidates) {
+        const candidateList = JSON.parse(storedCandidates);
+        setCandidates(candidateList);
+        return candidateList;
+      }
+      return [];
     } catch (error) {
       console.error("Error refreshing candidates:", error);
       return [];
@@ -190,11 +200,15 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // In production, this would call the contract method
-      // await contract.addCandidate(name, party, imageUrl);
+      // Get existing candidates
+      const storedCandidates = localStorage.getItem("candidates");
+      const existingCandidates = storedCandidates ? JSON.parse(storedCandidates) : [];
       
-      // For now, just add to our mock data
-      const newId = candidates.length + 1;
+      // Create new candidate
+      const newId = existingCandidates.length > 0 
+        ? Math.max(...existingCandidates.map((c: Candidate) => c.id)) + 1 
+        : 1;
+        
       const newCandidate: Candidate = {
         id: newId,
         name,
@@ -203,7 +217,11 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         voteCount: 0
       };
       
-      setCandidates([...candidates, newCandidate]);
+      // Add to candidates list
+      const updatedCandidates = [...existingCandidates, newCandidate];
+      localStorage.setItem("candidates", JSON.stringify(updatedCandidates));
+      
+      setCandidates(updatedCandidates);
       toast.success(`Candidate ${name} added successfully`);
       return true;
     } catch (error: any) {
@@ -241,20 +259,39 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // In production, this would call the contract method
-      // await contract.vote(candidateId);
+      // Get existing candidates
+      const storedCandidates = localStorage.getItem("candidates");
+      const existingCandidates: Candidate[] = storedCandidates ? JSON.parse(storedCandidates) : [];
       
-      // For now, just update our mock data
-      const updatedCandidates = candidates.map(candidate => {
+      // Find candidate and update vote count
+      const candidateExists = existingCandidates.some(c => c.id === candidateId);
+      if (!candidateExists) {
+        toast.error("Invalid candidate ID");
+        return false;
+      }
+      
+      // Update candidate vote count
+      const updatedCandidates = existingCandidates.map(candidate => {
         if (candidate.id === candidateId) {
           return { ...candidate, voteCount: candidate.voteCount + 1 };
         }
         return candidate;
       });
       
+      // Update total votes
+      const newTotalVotes = totalVotes + 1;
+      
+      // Save updated candidates
+      localStorage.setItem("candidates", JSON.stringify(updatedCandidates));
+      localStorage.setItem("totalVotes", newTotalVotes.toString());
+      
+      // Update state
       setCandidates(updatedCandidates);
+      setTotalVotes(newTotalVotes);
       setHasUserVoted(true);
-      setTotalVotes(totalVotes + 1);
+      
+      // Update user's vote status
+      updateUserVoteStatus(true);
       
       toast.success("Vote cast successfully");
       return true;
@@ -283,11 +320,18 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // In production, this would call the contract method
-      // await contract.startElection();
+      // Check if there are candidates
+      const storedCandidates = localStorage.getItem("candidates");
+      const existingCandidates = storedCandidates ? JSON.parse(storedCandidates) : [];
+      if (existingCandidates.length === 0) {
+        toast.error("Cannot start election with no candidates. Add candidates first.");
+        return false;
+      }
       
-      // For now, just update our state
+      // Update election state
+      localStorage.setItem("electionState", ElectionState.InProgress.toString());
       setElectionState(ElectionState.InProgress);
+      
       toast.success("Election started successfully");
       return true;
     } catch (error: any) {
@@ -315,18 +359,23 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
         return false;
       }
 
-      // In production, this would call the contract method
-      // await contract.endElection();
+      // Update election state
+      localStorage.setItem("electionState", ElectionState.Ended.toString());
+      setElectionState(ElectionState.Ended);
       
       // Determine the winner
-      if (candidates.length > 0) {
-        const sortedCandidates = [...candidates].sort((a, b) => b.voteCount - a.voteCount);
+      const storedCandidates = localStorage.getItem("candidates");
+      const existingCandidates: Candidate[] = storedCandidates ? JSON.parse(storedCandidates) : [];
+      
+      if (existingCandidates.length > 0) {
+        const sortedCandidates = [...existingCandidates].sort((a, b) => b.voteCount - a.voteCount);
         const winningCandidate = sortedCandidates[0];
+        
+        // Save winner to local storage
+        localStorage.setItem("winner", JSON.stringify(winningCandidate));
         setWinner(winningCandidate);
       }
       
-      // Update election state
-      setElectionState(ElectionState.Ended);
       toast.success("Election ended successfully");
       return true;
     } catch (error: any) {
@@ -335,13 +384,6 @@ export const BlockchainProvider = ({ children }: BlockchainProviderProps) => {
       return false;
     }
   };
-
-  // Check if user has voted when wallet address changes
-  useEffect(() => {
-    if (isInitialized && user?.walletAddress) {
-      checkIfUserVoted();
-    }
-  }, [isInitialized, user?.walletAddress, checkIfUserVoted]);
 
   const value = {
     isInitialized,

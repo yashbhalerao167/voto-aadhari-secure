@@ -9,12 +9,21 @@ import { toast } from "sonner";
 
 export function WalletConnect() {
   const { user, connectWallet } = useAuth();
-  const { initialize } = useBlockchain();
+  const { initialize, isInitialized } = useBlockchain();
   const navigate = useNavigate();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
 
   useEffect(() => {
+    // Check if metamask is installed
+    const checkMetaMask = async () => {
+      if (!window.ethereum) {
+        toast.error("MetaMask is not installed. Please install MetaMask to continue.");
+      }
+    };
+
+    checkMetaMask();
+
     // Redirect to voting page if wallet is already connected
     if (user?.walletAddress) {
       navigate("/vote");
@@ -39,6 +48,9 @@ export function WalletConnect() {
           toast.error("Failed to initialize blockchain connection");
         }
       }
+    } catch (error) {
+      console.error("Error connecting wallet:", error);
+      toast.error("Failed to connect wallet");
     } finally {
       setIsConnecting(false);
       setIsInitializing(false);
@@ -64,7 +76,7 @@ export function WalletConnect() {
         
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
           <p className="text-sm text-amber-700">
-            <strong>Important:</strong> You need to have MetaMask installed to connect your wallet. If you don't have it yet, please install the MetaMask extension first.
+            <strong>Important:</strong> You need to have MetaMask installed to connect your wallet. If you don't have it yet, please install the MetaMask extension first from <a href="https://metamask.io/download/" target="_blank" rel="noreferrer" className="underline">metamask.io</a>.
           </p>
         </div>
       </CardContent>

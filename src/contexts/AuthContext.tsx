@@ -1,14 +1,27 @@
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
 
 interface User {
   id: string;
   name: string;
+  username: string;
   role: "voter" | "admin";
   isAuthenticated: boolean;
   walletAddress?: string;
   aadhaarVerified?: boolean;
   aadhaarNumber?: string;
+  hasVoted?: boolean;
+}
+
+interface StoredUser {
+  username: string;
+  password: string;
+  name: string;
+  aadhaarVerified?: boolean;
+  aadhaarNumber?: string;
+  walletAddress?: string;
+  hasVoted?: boolean;
 }
 
 interface AuthContextType {
@@ -20,6 +33,7 @@ interface AuthContextType {
   logout: () => void;
   verifyAadhaar: (aadhaarData: FormData) => Promise<boolean>;
   connectWallet: () => Promise<boolean>;
+  updateUserVoteStatus: (hasVoted: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,8 +60,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    
+    // Initialize default admin user if it doesn't exist
+    initializeAdminUser();
+    
     setIsLoading(false);
   }, []);
+
+  // Initialize admin user if not already set
+  const initializeAdminUser = () => {
+    const storedUsers = localStorage.getItem("users");
+    let users = storedUsers ? JSON.parse(storedUsers) : [];
+    
+    // Check if admin user exists
+    const adminExists = users.some((u: StoredUser) => u.username === "admin");
+    
+    if (!adminExists) {
+      // Add admin user
+      users.push({
+        username: "admin",
+        password: "admin123",
+        name: "Administrator"
+      });
+      localStorage.setItem("users", JSON.stringify(users));
+      console.log("Admin user initialized");
+    }
+  };
 
   // Signup function for new voters
   const signup = async (username: string, password: string, name: string): Promise<boolean> => {
@@ -61,17 +99,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const existingUsers = localStorage.getItem("users");
       let users = existingUsers ? JSON.parse(existingUsers) : [];
       
-      const userExists = users.some((u: any) => u.username === username);
+      const userExists = users.some((u: StoredUser) => u.username === username);
       if (userExists) {
         toast.error("Username already exists. Please choose another.");
         return false;
       }
       
       // Add new user to storage
-      const newUser = {
+      const newUser: StoredUser = {
         username,
         password,
         name,
+        aadhaarVerified: false,
+        hasVoted: false
       };
       
       users.push(newUser);
@@ -88,28 +128,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Mock login function
+  // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
-      // This would be replaced with actual API call in production
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulating API delay
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000)); 
       
       // Check user credentials against stored users
       const storedUsers = localStorage.getItem("users");
       if (storedUsers) {
         const users = JSON.parse(storedUsers);
-        const foundUser = users.find((u: any) => u.username === username && u.password === password);
+        const foundUser = users.find((u: StoredUser) => u.username === username && u.password === password);
         
         if (foundUser) {
           const mockUser: User = {
             id: `voter-${Date.now()}`,
             name: foundUser.name || username,
+            username: foundUser.username,
             role: "voter",
             isAuthenticated: true,
             aadhaarVerified: foundUser.aadhaarVerified || false,
             aadhaarNumber: foundUser.aadhaarNumber || undefined,
+            walletAddress: foundUser.walletAddress || undefined,
+            hasVoted: foundUser.hasVoted || false
           };
           
           setUser(mockUser);
@@ -135,26 +178,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setIsLoading(true);
     
     try {
-      // This would be replaced with actual API call in production
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulating API delay
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000)); 
       
-      // Mock admin validation - in production this would validate against a secure backend
-      if (username === "admin" && password === "admin123") {
-        const adminUser: User = {
-          id: "admin-1",
-          name: "Administrator",
-          role: "admin",
-          isAuthenticated: true,
-        };
+      // Check stored users for admin
+      const storedUsers = localStorage.getItem("users");
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        const adminUser = users.find((u: StoredUser) => u.username === "admin" && u.password === "admin123");
         
-        setUser(adminUser);
-        localStorage.setItem("user", JSON.stringify(adminUser));
-        toast.success("Admin logged in successfully");
-        return true;
-      } else {
-        toast.error("Invalid admin credentials");
-        return false;
+        if ((username === "admin" && password === "admin123") || adminUser) {
+          const adminUserObj: User = {
+            id: "admin-1",
+            name: "Administrator",
+            username: "admin",
+            role: "admin",
+            isAuthenticated: true,
+          };
+          
+          setUser(adminUserObj);
+          localStorage.setItem("user", JSON.stringify(adminUserObj));
+          toast.success("Admin logged in successfully");
+          return true;
+        }
       }
+      
+      toast.error("Invalid admin credentials");
+      return false;
     } catch (error) {
       console.error("Admin login error:", error);
       toast.error("Admin login failed");
@@ -171,18 +221,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     toast.success("Logged out successfully");
   };
 
+  // Update user vote status
+  const updateUserVoteStatus = (hasVoted: boolean) => {
+    if (user) {
+      // Update the current user
+      const updatedUser = { ...user, hasVoted };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      
+      // Update in stored users
+      const storedUsers = localStorage.getItem("users");
+      if (storedUsers && user.username) {
+        const users = JSON.parse(storedUsers);
+        const updatedUsers = users.map((u: StoredUser) => {
+          if (u.username === user.username) {
+            return {
+              ...u,
+              hasVoted
+            };
+          }
+          return u;
+        });
+        localStorage.setItem("users", JSON.stringify(updatedUsers));
+      }
+    }
+  };
+
   // Aadhaar verification with number storage
   const verifyAadhaar = async (aadhaarData: FormData): Promise<boolean> => {
     setIsLoading(true);
     
     try {
-      // This would be replaced with actual API call to Aadhaar verification service
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulating API delay
+      // Simulate API delay for verification
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       const aadhaarNumber = aadhaarData.get("aadhaarNumber") as string;
       
-      // In a real implementation, this would validate the Aadhaar card with government APIs
-      if (user) {
+      if (user && user.username) {
         // Update the user in the current session
         const updatedUser = { 
           ...user, 
@@ -192,12 +267,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(updatedUser);
         localStorage.setItem("user", JSON.stringify(updatedUser));
         
-        // Also update in the users storage
+        // Update in the stored users
         const storedUsers = localStorage.getItem("users");
         if (storedUsers) {
           const users = JSON.parse(storedUsers);
-          const updatedUsers = users.map((u: any) => {
-            if (u.username === user.name) {
+          const updatedUsers = users.map((u: StoredUser) => {
+            if (u.username === user.username) {
               return {
                 ...u,
                 aadhaarVerified: true,
@@ -242,13 +317,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       const walletAddress = accounts[0];
       
-      if (user) {
+      if (user && user.username) {
         const updatedUser = { 
           ...user, 
           walletAddress 
         };
         setUser(updatedUser);
         localStorage.setItem("user", JSON.stringify(updatedUser));
+        
+        // Update in the stored users
+        const storedUsers = localStorage.getItem("users");
+        if (storedUsers) {
+          const users = JSON.parse(storedUsers);
+          const updatedUsers = users.map((u: StoredUser) => {
+            if (u.username === user.username) {
+              return {
+                ...u,
+                walletAddress
+              };
+            }
+            return u;
+          });
+          localStorage.setItem("users", JSON.stringify(updatedUsers));
+        }
+        
         toast.success("Wallet connected successfully");
         return true;
       }
@@ -270,7 +362,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     adminLogin,
     logout,
     verifyAadhaar,
-    connectWallet
+    connectWallet,
+    updateUserVoteStatus
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

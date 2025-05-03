@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useBlockchain } from "@/contexts/BlockchainContext";
 import { useState } from "react";
+import { CheckCircle, Vote } from "lucide-react";
 
 interface Candidate {
   id: number;
@@ -29,12 +30,18 @@ export function CandidateCard({
   const [isVoting, setIsVoting] = useState(false);
   
   const handleVote = async () => {
+    if (electionState !== 1) {
+      return;
+    }
+    
     setIsVoting(true);
     try {
       const success = await voteForCandidate(candidate.id);
       if (success) {
         onVoteSubmitted();
       }
+    } catch (error) {
+      console.error("Error voting:", error);
     } finally {
       setIsVoting(false);
     }
@@ -52,6 +59,10 @@ export function CandidateCard({
           src={candidate.imageUrl} 
           alt={candidate.name}
           className="absolute top-0 left-0 w-full h-full object-cover"
+          onError={(e) => {
+            // Fallback for broken image links
+            (e.target as HTMLImageElement).src = "/placeholder.svg";
+          }}
         />
       </div>
       <CardContent className="flex-grow p-4">
@@ -66,7 +77,7 @@ export function CandidateCard({
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
               <div 
-                className="bg-vote-primary h-2 rounded-full" 
+                className="bg-primary h-2 rounded-full" 
                 style={{ width: `${votePercentage}%` }}
               ></div>
             </div>
@@ -83,11 +94,17 @@ export function CandidateCard({
             {isVoting ? (
               <span className="animate-pulse-light">Casting Vote...</span>
             ) : hasUserVoted ? (
-              "Already Voted"
+              <span className="flex items-center justify-center gap-2">
+                <CheckCircle size={16} />
+                Already Voted
+              </span>
             ) : electionState !== 1 ? (
               "Voting Closed"
             ) : (
-              "Vote for Candidate"
+              <span className="flex items-center justify-center gap-2">
+                <Vote size={16} />
+                Vote for Candidate
+              </span>
             )}
           </Button>
         )}
